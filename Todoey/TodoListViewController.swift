@@ -11,10 +11,19 @@ import UIKit
 class TodoListViewController: UITableViewController {
     
     var itemArray = ["Find Mike", "Buy Eggos", "Destroy Demogorgon"]
-
+    
+    //use the sandbox defaults for app
+    let defaults = UserDefaults.standard
+    
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
+        
+        //using if statement for initial load of local perisitence incase its empty which would crash app - then set to itemArray
+        if let items = UserDefaults.standard.array(forKey: "listArrayItem") as? [String] {
+            itemArray = items
+        }
     }
 
     //MARK - tableView datasource methods
@@ -63,6 +72,11 @@ class TodoListViewController: UITableViewController {
             
             //append the item array
             self.itemArray.append(itemCreated.text!)
+            
+            //set new entry to itemArray to store
+            //self on item array and on defaults since its in a closure
+            self.defaults.set(self.itemArray, forKey: "listArrayItem")
+            
             //reload the datasource afterwords to see changes on screen
             self.tableView.reloadData()
             
