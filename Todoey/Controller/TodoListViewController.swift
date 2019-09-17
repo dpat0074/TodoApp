@@ -7,27 +7,33 @@
 //
 
 import UIKit
+import CoreData
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: UITableViewController{
     
     //set to new array of Item object
     var itemArray = [Item]()
     
     //set file path to user directory for app and create new path directory for new plist
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+//    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
     
     //use the sandbox defaults for app
     let defaults = UserDefaults.standard
     
+    //went into UIApplication and shared singleton and cast as app delete to access view context properties
+    let viewContext = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        //using if statement for initial load of local perisitence incase its empty which would crash app - then set to itemArray
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+        
+        //using if statement for initial load of local persistence incase its empty which would crash app - then set to itemArray
 //        if let items = UserDefaults.standard.array(forKey: "listArrayItem") as? [Item] {
 //                    itemArray = items
 //            }
         
-        //use decoder to get values back instead of hard coding them
+        //load data from source
         loadData()
     }
 
@@ -59,6 +65,9 @@ class TodoListViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
 //        print(indexPath.row)
         
+        //set value by key
+//        itemArray[indexPath.row].setValue("newChangedValue", forKey: "title")
+        
         //short hand toggle bool field for checkmark
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done
         
@@ -81,8 +90,9 @@ class TodoListViewController: UITableViewController {
         let action = UIAlertAction(title: "Add", style: .default) { (alertAction) in
             
             //append the item array
-            let newItem = Item()
+            let newItem = Item(context: self.viewContext)
             newItem.title = itemCreated.text!
+            newItem.done = false
             self.itemArray.append(newItem)
             
             //set new entry to itemArray to store - failed to insert new model type only primitive types
@@ -109,33 +119,74 @@ class TodoListViewController: UITableViewController {
     
     func saveData() {
         //set encoding and writing to custom class list in user defaults file path
-        let encoder = PropertyListEncoder()
+//        let encoder = PropertyListEncoder()
         
         do {
-            let data = try encoder.encode(itemArray)
-            try data.write(to: dataFilePath!)
+//            let data = try encoder.encode(itemArray)
+//            try data.write(to: dataFilePath!)
+            try viewContext.save()
         } catch {
-            print("Error writing to list: \(error)")
+            print("Error saving to database: \(error)")
         }
         
         //reload the datasource afterwords to see changes on screen
         tableView.reloadData()
     }
     
-    func loadData() {
-        //set variable to filepath
-        if let data = try? Data(contentsOf: dataFilePath!) {
+    func loadData(request: NSFetchRequest<Item> = Item.fetchRequest()) {
+//        //set variable to filepath
+//        if let data = try? Data(contentsOf: dataFilePath!) {
+//
+//            //create instance of decoder
+//            let decoder = PropertyListDecoder()
+//
+//            //decode from custom list and of type from url
+//            do {
+//                itemArray = try decoder.decode([Item].self, from: data)
+//            } catch {
+//                print("Error decoding from list: \(error)")
+//            }
+//        }
+        
+//    let request : NSFetchRequest<Item> = Item.fetchRequest()
+        do {
+            itemArray = try viewContext.fetch(request)
+        } catch {
+            print ("Error retreiving data: \(error)")
+        }
+            tableView.reloadData()
+    }
+}
+
+
+//MARK - extension to help seperate concerns and for debugging
+extension TodoListViewController : UISearchBarDelegate {
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let nsRequest : NSFetchRequest<Item> = Item.fetchRequest()
+        
+        //[cd] is to allow for case & díàcritic results
+        nsRequest.predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        
+        //sorting order for the search request
+        let sortDescriptor = [NSSortDescriptor(key: "title", ascending: true)]
+        
+        nsRequest.sortDescriptors = sortDescriptor
+        
+        loadData(request: nsRequest)
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if (searchBar.text?.count == 0) {
+            //reload the original data without parameters
+            loadData()
             
-            //create instance of decoder
-            let decoder = PropertyListDecoder()
-            
-            //decode from custom list and of type from url
-            do {
-                itemArray = try decoder.decode([Item].self, from: data)
-            } catch {
-                print("Error decoding from list: \(error)")
+            //resign the search bar running on the main thread?? to remove keyboard from view and unselect the searchbar
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
             }
         }
     }
+    
+    
 }
 
