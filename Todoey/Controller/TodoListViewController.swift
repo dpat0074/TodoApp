@@ -14,11 +14,19 @@ class TodoListViewController: UITableViewController{
     //set to new array of Item object
     var itemArray = [Item]()
     
+    var categoryName : Category? {
+        //on setting on this propert y - load the data associated with the selected view
+        didSet {
+            loadData()
+        }
+    }
+    
+    
     //set file path to user directory for app and create new path directory for new plist
 //    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
     
     //use the sandbox defaults for app
-    let defaults = UserDefaults.standard
+//    let defaults = UserDefaults.standard
     
     //went into UIApplication and shared singleton and cast as app delete to access view context properties
     let viewContext = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
@@ -26,7 +34,7 @@ class TodoListViewController: UITableViewController{
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+//        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
         
         //using if statement for initial load of local persistence incase its empty which would crash app - then set to itemArray
 //        if let items = UserDefaults.standard.array(forKey: "listArrayItem") as? [Item] {
@@ -84,7 +92,7 @@ class TodoListViewController: UITableViewController{
         //variable to store the new input from user and pass between controller and alert actions
         var itemCreated = UITextField()
         
-        let alert = UIAlertController(title: "Add an To Do Item", message: "", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Add a To Do Item", message: "", preferredStyle: .alert)
         
         //this action will finish before controller method finishes
         let action = UIAlertAction(title: "Add", style: .default) { (alertAction) in
@@ -93,6 +101,8 @@ class TodoListViewController: UITableViewController{
             let newItem = Item(context: self.viewContext)
             newItem.title = itemCreated.text!
             newItem.done = false
+            //add the category name to the new item in the list
+            newItem.parentCategory = self.categoryName
             self.itemArray.append(newItem)
             
             //set new entry to itemArray to store - failed to insert new model type only primitive types
@@ -133,7 +143,8 @@ class TodoListViewController: UITableViewController{
         tableView.reloadData()
     }
     
-    func loadData(request: NSFetchRequest<Item> = Item.fetchRequest()) {
+    //set default value for predicate to nil for initial load and then let it take on pass by value arguments after
+    func loadData(request: NSFetchRequest<Item> = Item.fetchRequest(), predicate: NSPredicate? = nil) {
 //        //set variable to filepath
 //        if let data = try? Data(contentsOf: dataFilePath!) {
 //
@@ -149,6 +160,22 @@ class TodoListViewController: UITableViewController{
 //        }
         
 //    let request : NSFetchRequest<Item> = Item.fetchRequest()
+        
+        //match the predicate to only retrieve items that match the name of the parent category
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", categoryName!.name!)
+        
+//        let compoundPredicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, predicate!])
+//
+//        request.predicate = compoundPredicate
+        
+        //compound predicate and rewrite the previous lines with optional binding
+        if let passedPredicate = predicate {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, passedPredicate])
+        } else {
+            request.predicate = categoryPredicate
+        }
+        
+        
         do {
             itemArray = try viewContext.fetch(request)
         } catch {
@@ -172,7 +199,8 @@ extension TodoListViewController : UISearchBarDelegate {
         
         nsRequest.sortDescriptors = sortDescriptor
         
-        loadData(request: nsRequest)
+        //pass in the new parameter for predicate
+        loadData(request: nsRequest, predicate: nsRequest.predicate)
     }
     
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
